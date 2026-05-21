@@ -3,6 +3,7 @@ import random
 from string import ascii_letters, digits
 import os
 from flask_sqlalchemy import SQLAlchemy
+
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL",
