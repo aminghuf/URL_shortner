@@ -55,8 +55,15 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ~/url-shortener
-            git pull origin main
-            docker-compose down
-            docker-compose up --build
-            docker image prune -f
+            sudo docker stop url-shortener || true
+            sudo docker rm url-shortener || true
+
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/docker-shortener:latest
+
+            sudo docker run -d \
+              -p 127.0.0.1:5000:5000 \
+              --name url-shortener \
+              ${{ secrets.DOCKER_USERNAME }}/simple-app:latest
+
+            sleep 3
+            curl -f http://127.0.0.1:5000/health
