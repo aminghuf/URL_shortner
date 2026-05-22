@@ -47,7 +47,7 @@ def shorten_url():
 
     return {
         "short_code": short_code,
-        "short_url": f"http://localhost:5000/{short_code}"
+        "short_url": f"{base_url}{short_code}"
     }, 201
 
 @app.route("/<short_code>")
@@ -62,4 +62,4 @@ def generate_short_code():
     return ''.join(random.choices(ascii_letters + digits, k=6))
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=80)
