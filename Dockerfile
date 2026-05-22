@@ -17,6 +17,6 @@ RUN apt-get update \
 
 COPY . .
 
-EXPOSE 80
+EXPOSE 8000
 
 CMD ["python", "app.py"]
