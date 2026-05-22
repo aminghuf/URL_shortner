@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eye-Tracking URL Shortener</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <div class="container" id="mainContainer">
+        <div class="arm arm-right">
+            <div class="forearm">
+                <div class="hand">
+                    <div class="finger finger-1"></div>
+                    <div class="finger finger-2"></div>
+                    <div class="finger finger-3"></div>
+                    <div class="finger finger-4"></div>
+                    
+                    <div class="scissors">
+                        <div class="blade blade-top"></div>
+                        <div class="blade blade-bottom"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="face">
+            <div class="eye">
+                <div class="pupil"></div>
+            </div>
+            <div class="eye">
+                <div class="pupil"></div>
+            </div>
+        </div>
+
+        <h1>URL Shortener</h1>
+        
+        <div class="form-group">
+            <input type="url" id="longUrl" placeholder="Paste your long URL here..." required>
+            <button onclick="shortenUrl()">Shorten</button>
+        </div>
+
+        <div id="resultContainer" class="result-box hidden">
+            <p>Your short URL:</p>
+            <a id="shortUrl" href="#" target="_blank"></a>
+        </div>
+    </div>
+
+    <script>
+        
+        window.addEventListener('mousemove', (e) => {
+            const pupils = document.querySelectorAll('.pupil');
+            
+            pupils.forEach(pupil => {
+                const eye = pupil.parentElement;
+                const rect = eye.getBoundingClientRect();
+                const eyeX = rect.left + rect.width / 2;
+                const eyeY = rect.top + rect.height / 2;
+                
+                const angle = Math.atan2(e.clientY - eyeY, e.clientX - eyeX);
+                const maxDistance = 15;
+                
+                const moveX = Math.cos(angle) * maxDistance;
+                const moveY = Math.sin(angle) * maxDistance;
+                
+                pupil.style.transform = `translate(${moveX}px, ${moveY}px)`;
+            });
+        });
+
+        
+        async function shortenUrl() {
+            const urlInput = document.getElementById('longUrl').value;
+            const container = document.getElementById('mainContainer');
+            const resultContainer = document.getElementById('resultContainer');
+            const shortUrlLink = document.getElementById('shortUrl');
+
+            if (!urlInput) {
+                alert("Please enter a URL first!");
+                return;
+            }
+
+            container.classList.add('shortening');
+            resultContainer.classList.add('hidden'); 
+
+            try {
+                const response = await fetch('/shorten', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: urlInput })
+                });
+
+                const data = await response.json();
+
+                setTimeout(() => {
+                    container.classList.remove('shortening');
+
+                    if (response.ok) {
+                        shortUrlLink.href = data.short_url;
+                        shortUrlLink.innerText = data.short_url;
+                        resultContainer.classList.remove('hidden');
+                    } else {
+                        alert(data.error || "Something went wrong.");
+                    }
+                }, 1500);
+
+            } catch (error) {
+                container.classList.remove('shortening');
+                console.error("Error connecting to server:", error);
+                alert("Could not reach backend server.");
+            }
+        }
+    </script>
+</body>
+</html>
