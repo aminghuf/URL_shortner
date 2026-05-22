@@ -4,7 +4,7 @@ from string import ascii_letters, digits
 import os
 from flask_sqlalchemy import SQLAlchemy
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL",
     "sqlite:///:memory:"
@@ -47,7 +47,7 @@ def shorten_url():
 
     return {
         "short_code": short_code,
-        "short_url": f"http://localhost:80/{short_code}"
+        "short_url": f"http://localhost:8000/{short_code}"
     }, 201
 
 @app.route("/<short_code>")
