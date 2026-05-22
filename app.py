@@ -37,6 +37,10 @@ def shorten_url():
     if not long_url:
         return {"error": "URL is required"}, 400
 
+    # Ensure URL has a scheme
+    if not long_url.startswith(("http://", "https://")):
+        long_url = "https://" + long_url
+
     short_code = generate_short_code()
     while URLMapping.query.filter_by(short_code=short_code).first():
         short_code = generate_short_code()
@@ -47,7 +51,7 @@ def shorten_url():
 
     return {
         "short_code": short_code,
-        "short_url": f"http://localhost/{short_code}"
+        "short_url": f"http://localhost:5000/{short_code}"
     }, 201
 
 @app.route("/<short_code>")
