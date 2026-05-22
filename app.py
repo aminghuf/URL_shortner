@@ -1,4 +1,4 @@
-from flask import Flask,redirect, request
+from flask import Flask, redirect, request, render_template
 import random
 from string import ascii_letters, digits
 import os
@@ -13,14 +13,6 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-
-
-@app.route("/health")
-def health():
-    return {"status": "ok"}, 200
-
-
-
 class URLMapping(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     short_code = db.Column(db.String(10), unique=True, nullable=False)
@@ -29,6 +21,13 @@ class URLMapping(db.Model):
 with app.app_context():
     db.create_all()
 
+@app.route("/health")
+def health():
+    return {"status": "ok"}, 200
+
+@app.route("/")
+def home():
+    return render_template("index.html")
 
 @app.route("/shorten", methods=["POST"])
 def shorten_url():
@@ -48,7 +47,7 @@ def shorten_url():
 
     return {
         "short_code": short_code,
-        "short_url": f"http://localhost:5000/{short_code}"
+        "short_url": f"http://localhost:8080/{short_code}"
     }, 201
 
 @app.route("/<short_code>")
@@ -62,6 +61,5 @@ def redirect_to_url(short_code):
 def generate_short_code():
     return ''.join(random.choices(ascii_letters + digits, k=6))
 
-
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=8080)
