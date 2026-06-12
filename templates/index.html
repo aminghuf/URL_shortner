@@ -45,6 +45,41 @@
             <p>Your short URL:</p>
             <a id="shortUrl" href="#" target="_blank"></a>
         </div>
+
+        <!-- Bulk Import Section -->
+        <div class="bulk-import-section">
+            <h2>📂 Bulk Import</h2>
+            <div class="file-input-wrapper">
+                <input type="file" id="bulkFileInput" accept=".csv,.txt" />
+                <button class="btn-import" id="startImportBtn" onclick="startBulkImport()">Start Import</button>
+            </div>
+
+            <div class="progress-wrapper" id="progressWrapper" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-status">
+                    <span id="progressLabel">Uploading...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+            </div>
+
+            <div class="import-status" id="importStatus"></div>
+
+            <div class="results-table-wrapper" id="resultsWrapper" style="display: none;">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Original URL</th>
+                            <th>Short URL</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -111,6 +146,164 @@
                 console.error("Error connecting to server:", error);
                 alert("Could not reach backend server.");
             }
+        }
+
+        
+        async function startBulkImport() {
+            const fileInput = document.getElementById('bulkFileInput');
+            const file = fileInput.files[0];
+            const btn = document.getElementById('startImportBtn');
+            const progressWrapper = document.getElementById('progressWrapper');
+            const progressFill = document.getElementById('progressFill');
+            const progressLabel = document.getElementById('progressLabel');
+            const progressPercent = document.getElementById('progressPercent');
+            const importStatus = document.getElementById('importStatus');
+            const resultsWrapper = document.getElementById('resultsWrapper');
+            const resultsBody = document.getElementById('resultsBody');
+
+            
+            importStatus.className = 'import-status';
+            importStatus.style.display = 'none';
+
+            if (!file) {
+                importStatus.className = 'import-status error';
+                importStatus.style.display = 'block';
+                importStatus.textContent = '⚠️ Please select a CSV or text file first.';
+                return;
+            }
+
+            
+            if (!file.name.match(/\.(csv|txt)$/i)) {
+                importStatus.className = 'import-status error';
+                importStatus.style.display = 'block';
+                importStatus.textContent = '⚠️ Please select a .csv or .txt file.';
+                return;
+            }
+
+            
+            btn.disabled = true;
+            progressWrapper.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+            progressLabel.textContent = 'Uploading...';
+            resultsWrapper.style.display = 'none';
+            resultsBody.innerHTML = '';
+            importStatus.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressFill.style.width = percent + '%';
+                    progressPercent.textContent = percent + '%';
+                    if (percent < 100) {
+                        progressLabel.textContent = 'Uploading...';
+                    } else {
+                        progressLabel.textContent = 'Processing URLs...';
+                    }
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                btn.disabled = false;
+                progressFill.style.width = '100%';
+                progressPercent.textContent = '100%';
+
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    progressLabel.textContent = 'Import complete!';
+
+                    if (response.results && response.results.length > 0) {
+                        displayBulkResults(response.results);
+                        resultsWrapper.style.display = 'block';
+                    }
+
+                    if (response.error) {
+                        importStatus.className = 'import-status error';
+                        importStatus.style.display = 'block';
+                        importStatus.textContent = '❌ ' + response.error;
+                    } else {
+                        const total = response.results ? response.results.length : 0;
+                        const success = response.results ? response.results.filter(r => r.status === 'success').length : 0;
+                        const failed = response.results ? response.results.filter(r => r.status === 'error').length : 0;
+                        const duplicates = response.results ? response.results.filter(r => r.status === 'duplicate').length : 0;
+
+                        let msg = `✅ Imported ${success} of ${total} URL(s).`;
+                        if (duplicates > 0) msg += ` ${duplicates} duplicate(s) skipped.`;
+                        if (failed > 0) msg += ` ${failed} failed.`;
+
+                        importStatus.className = failed > 0 ? 'import-status info' : 'import-status success';
+                        importStatus.style.display = 'block';
+                        importStatus.textContent = msg;
+                    }
+
+                } catch (err) {
+                    progressLabel.textContent = 'Import failed';
+                    importStatus.className = 'import-status error';
+                    importStatus.style.display = 'block';
+                    importStatus.textContent = '❌ Failed to parse server response.';
+                }
+            });
+
+            xhr.addEventListener('error', function () {
+                btn.disabled = false;
+                progressLabel.textContent = 'Network error';
+                importStatus.className = 'import-status error';
+                importStatus.style.display = 'block';
+                importStatus.textContent = '❌ Network error — could not reach the server.';
+            });
+
+            xhr.open('POST', '/bulk-import', true);
+            xhr.send(formData);
+        }
+
+        function displayBulkResults(results) {
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = '';
+
+            results.forEach((item, index) => {
+                const tr = document.createElement('tr');
+
+                
+                const numTd = document.createElement('td');
+                numTd.textContent = index + 1;
+                tr.appendChild(numTd);
+
+                
+                const urlTd = document.createElement('td');
+                urlTd.textContent = item.original_url || item.url || '-';
+                tr.appendChild(urlTd);
+
+                
+                const shortTd = document.createElement('td');
+                if (item.short_url) {
+                    const link = document.createElement('a');
+                    link.href = item.short_url;
+                    link.target = '_blank';
+                    link.className = 'short-link';
+                    link.textContent = item.short_url;
+                    shortTd.appendChild(link);
+                } else {
+                    shortTd.textContent = '-';
+                }
+                tr.appendChild(shortTd);
+
+                
+                const statusTd = document.createElement('td');
+                const badge = document.createElement('span');
+                const status = item.status || 'error';
+                badge.className = 'status-badge ' + status;
+                const labels = { success: '✓ Success', error: '✗ Failed', duplicate: '↩ Duplicate' };
+                badge.textContent = labels[status] || status;
+                statusTd.appendChild(badge);
+                tr.appendChild(statusTd);
+
+                tbody.appendChild(tr);
+            });
         }
     </script>
 </body>

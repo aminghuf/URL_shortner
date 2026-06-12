@@ -14,9 +14,11 @@ def test_health():
 def test_shorten_url():
     client = app.test_client()
 
+    import random
+    test_url = f"https://test-{random.randint(10000,99999)}.com"
     response = client.post(
         "/shorten",
-        json={"url": "https://google.com"}
+        json={"url": test_url}
     )
 
     assert response.status_code == 201
@@ -39,10 +41,12 @@ def test_shorten_missing_url():
 def test_redirect_to_url():
     client = app.test_client()
 
-    # First, create a short URL
+    # First, create a short URL (use a unique URL to avoid dedup)
+    import random
+    unique_url = f"https://example-{random.randint(10000,99999)}.com"
     response = client.post(
         "/shorten",
-        json={"url": "https://google.com"}
+        json={"url": unique_url}
     )
 
     assert response.status_code == 201
@@ -54,4 +58,4 @@ def test_redirect_to_url():
     response = client.get(f"/{short_code}")
 
     assert response.status_code == 302
-    assert response.headers["Location"] == "https://google.com"
+    assert response.headers["Location"] == unique_url

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: url-shortener-config
+  namespace: url-shortener
+  labels:
+    app: url-shortener
+data:
+  DATABASE_URL: "postgresql://urlshortener:password@postgres-service:5432/urlshortener"
+  REDIS_URL: "redis://redis-service:6379/0"
+  APP_NAME: "url-shortener"
+  FLASK_ENV: "production"

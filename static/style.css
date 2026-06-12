@@ -232,3 +232,230 @@ button:hover {
 .hidden {
     display: none;
 }
+
+/* =============================================
+   Bulk Import Section
+   ============================================= */
+
+.bulk-import-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #353b48;
+}
+
+.bulk-import-section h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #a0a5b0;
+    margin: 0 0 16px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.file-input-wrapper {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: center;
+}
+
+.file-input-wrapper input[type="file"] {
+    flex: 1;
+    padding: 10px 12px;
+    border: 2px dashed #353b48;
+    border-radius: 6px;
+    background: #1e222b;
+    color: #a0a5b0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.file-input-wrapper input[type="file"]:hover,
+.file-input-wrapper input[type="file"]:focus {
+    border-color: #4b7bec;
+}
+
+.file-input-wrapper input[type="file"]::file-selector-button {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 4px;
+    background: #4b7bec;
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 10px;
+    transition: background 0.2s ease;
+}
+
+.file-input-wrapper input[type="file"]::file-selector-button:hover {
+    background: #3867d6;
+}
+
+.btn-import {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 6px;
+    background: #2ed573;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-import:hover {
+    background: #26b864;
+}
+
+.btn-import:disabled {
+    background: #57606f;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Progress Bar */
+.progress-wrapper {
+    margin: 16px 0;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #353b48;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4b7bec, #2ed573);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-status {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #a0a5b0;
+    margin-top: 6px;
+}
+
+/* Import Status Message */
+.import-status {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin: 12px 0;
+    display: none;
+}
+
+.import-status.success {
+    display: block;
+    background: rgba(46, 213, 115, 0.12);
+    border: 1px solid rgba(46, 213, 115, 0.3);
+    color: #2ed573;
+}
+
+.import-status.error {
+    display: block;
+    background: rgba(255, 71, 87, 0.12);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    color: #ff6b81;
+}
+
+.import-status.info {
+    display: block;
+    background: rgba(75, 123, 236, 0.12);
+    border: 1px solid rgba(75, 123, 236, 0.3);
+    color: #4b7bec;
+}
+
+/* Results Table */
+.results-table-wrapper {
+    margin-top: 16px;
+    max-height: 320px;
+    overflow-y: auto;
+    border-radius: 6px;
+    border: 1px solid #353b48;
+}
+
+.results-table-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+.results-table-wrapper::-webkit-scrollbar-track {
+    background: #1e222b;
+}
+
+.results-table-wrapper::-webkit-scrollbar-thumb {
+    background: #353b48;
+    border-radius: 3px;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.results-table th {
+    background: #1e222b;
+    color: #a0a5b0;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 12px;
+    position: sticky;
+    top: 0;
+    border-bottom: 2px solid #353b48;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 11px;
+}
+
+.results-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #2d3340;
+    color: #dfe6e9;
+    word-break: break-all;
+}
+
+.results-table tr:hover td {
+    background: rgba(75, 123, 236, 0.06);
+}
+
+.results-table .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.results-table .status-badge.success {
+    background: rgba(46, 213, 115, 0.15);
+    color: #2ed573;
+}
+
+.results-table .status-badge.error {
+    background: rgba(255, 71, 87, 0.15);
+    color: #ff6b81;
+}
+
+.results-table .status-badge.duplicate {
+    background: rgba(255, 165, 2, 0.15);
+    color: #ffa502;
+}
+
+.results-table .short-link {
+    color: #4b7bec;
+    text-decoration: none;
+}
+
+.results-table .short-link:hover {
+    text-decoration: underline;
+}
