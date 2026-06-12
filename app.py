@@ -479,11 +479,23 @@ def bulk_import():
 
     to_insert = [item for item in unique_batch if item["long_url"] not in existing_urls]
 
+    # Build individual results for frontend display
+    results: list[dict] = []
+    for item in unique_batch:
+        is_new = item["long_url"] not in existing_urls
+        results.append({
+            "original_url": item["long_url"],
+            "short_code": item["short_code"],
+            "short_url": request.host_url.rstrip("/") + "/" + item["short_code"],
+            "status": "success" if is_new else "duplicate",
+        })
+
     if not to_insert:
         return jsonify({
             "message": "All URLs already exist.",
             "total_received": total,
             "inserted": 0,
+            "results": results,
         }), 200
 
     # Transaction-wrapped batch insert
@@ -509,6 +521,7 @@ def bulk_import():
             "error": "Database insert failed",
             "detail": str(exc),
             "total_received": total,
+            "results": results,
         }), 500
 
     return jsonify({
@@ -517,4 +530,5 @@ def bulk_import():
         "inserted": inserted_count,
         "duplicates_skipped": len(rows) - len(to_insert),
         "errors": errors[:10] if errors else [],
+        "results": results,
     }), 201

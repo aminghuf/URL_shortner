@@ -27,43 +27,23 @@ jobs:
       - name: Run tests
         run: |
           pytest
+
       - name: Build Docker image
         run: |
           docker build -t url-shortener:test .
-      - name: Login to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Tag Docker image
-        run: |
-          docker tag url-shortener:test ${{ secrets.DOCKER_USERNAME }}/url-shortener:latest
-          docker tag url-shortener:test ${{ secrets.DOCKER_USERNAME }}/url-shortener:${{ github.sha }}
-
-      - name: Push Docker image
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/url-shortener:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/url-shortener:${{ github.sha }}
-
+  # Self-hosted webhook on the production server handles actual deployment
+  # Webhook endpoint: http://116.203.200.35:9999/webhook
+  # Triggers: git pull, docker-compose build, docker-compose up -d
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            sudo docker stop url-shortener || true
-            sudo docker rm url-shortener || true
-
-            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/url-shortener:latest
-
-            sudo docker run -d \
-              -p 5000:5000 \
-              --name url-shortener \
-              ${{ secrets.DOCKER_USERNAME }}/url-shortener:latest
-
-            sleep 3
-            curl -f http://127.0.0.1:5000/health
+      - name: Trigger deployment via webhook
+        run: |
+          curl -s -X POST http://116.203.200.35:9999/webhook \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: push" \
+            -d '{"ref": "refs/heads/main"}'
