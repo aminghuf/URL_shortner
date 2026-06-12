@@ -28,6 +28,10 @@ from sqlalchemy import func
 
 app = Flask(__name__, template_folder="templates")
 
+# Trust X-Forwarded-Proto header (for Cloudflare proxy)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///urls.db")
 # Fix postgres:// → postgresql:// for SQLAlchemy 1.x+/psycopg2 compat
