@@ -1,11 +1,3 @@
-"""
-Production-Grade Flask URL Shortener
--------------------------------------
-PostgreSQL backend (SQLAlchemy), Redis caching, async bulk import with
-ThreadPoolExecutor, transaction-wrapped batch inserts, click tracking,
-rate limiting, CORS, and health check endpoints.
-"""
-
 import csv
 import io
 import os
@@ -398,11 +390,7 @@ def _process_urls_chunk(chunk: list[dict], existing_codes: set) -> list[dict]:
 
 @app.route("/bulk-import", methods=["POST"])
 def bulk_import():
-    """
-    Accept a multipart upload (CSV or plain text, one URL per line).
-    Processes URLs concurrently using a ThreadPoolExecutor and performs
-    transaction-wrapped batch inserts.
-    """
+
     client_ip = request.remote_addr or "unknown"
     if is_rate_limited(client_ip):
         return jsonify({"error": "Rate limit exceeded. Try again later."}), 429
