@@ -1,0 +1,116 @@
+# =============================================================================
+# Production Docker Compose — used on the VPS (standalone, no merge needed).
+# The app image comes from Docker Hub (built by GitHub Actions).
+# Nginx builds locally from ./nginx (fast, ~3 seconds).
+#
+# Usage on VPS:  docker compose -f docker-compose.prod.yml up -d
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ──────────────────────────────────────────────
+  # Flask app — pulled from Docker Hub
+  # ──────────────────────────────────────────────
+  app:
+    image: aminghazizadeh/url-shortener:latest
+    pull_policy: always
+    container_name: url_shortner_app_1
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-urlshortener}:${POSTGRES_PASSWORD:-urlshortener_secret}@postgres:5432/${POSTGRES_DB:-urlshortener}"
+      REDIS_URL: "redis://redis:6379/0"
+      BULK_IMPORT_WORKERS: "4"
+      FLASK_ENV: "production"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+        reservations:
+          cpus: "0.2"
+          memory: "256M"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ──────────────────────────────────────────────
+  # Nginx reverse proxy (built locally — fast)
+  # ──────────────────────────────────────────────
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: "128M"
+        reservations:
+          cpus: "0.1"
+          memory: "64M"
+
+  # ──────────────────────────────────────────────
+  # PostgreSQL
+  # ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-urlshortener}
+      POSTGRES_USER: ${POSTGRES_USER:-urlshortener}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-urlshortener_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+        reservations:
+          cpus: "0.2"
+          memory: "256M"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-urlshortener}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────────────
+  # Redis cache
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: "256M"
+        reservations:
+          cpus: "0.1"
+          memory: "128M"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

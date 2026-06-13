@@ -1,0 +1,267 @@
+# =============================================================================
+# Kubernetes manifests for URL Shortener (k3s single-node)
+#
+# Install k3s:  curl -sfL https://get.k3s.io | sh -
+# Apply:        kubectl apply -f k8s/
+# =============================================================================
+
+# ── 1. Namespace ──
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: url-shortener
+
+---
+# ── 2. Secrets (CHANGE THESE! echo -n "value" | base64) ──
+apiVersion: v1
+kind: Secret
+metadata:
+  name: url-shortener-secrets
+  namespace: url-shortener
+type: Opaque
+data:
+  postgres-password: dXJsc2hvcnRlbmVyX3NlY3JldA==
+  postgres-user: dXJsc2hvcnRlbmVy
+  postgres-db: dXJsc2hvcnRlbmVy
+
+---
+# ── 3. ConfigMap ──
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: url-shortener-config
+  namespace: url-shortener
+data:
+  flask-env: "production"
+  bulk-import-workers: "4"
+  redis-url: "redis://redis:$(PGPA...ystem)@postgres:5432/$(POSTGRES_DB)"
+
+---
+# ── 4. PostgreSQL StatefulSet ──
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: url-shortener
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: url-shortener
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: url-shortener-secrets
+                  key: postgres-db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: url-shortener-secrets
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: url-shortener-secrets
+                  key: postgres-password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "urlshortener"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+# ── 5. Redis ──
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: url-shortener
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: url-shortener
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+# ── 6. Flask App ──
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: url-shortener
+spec:
+  selector:
+    app: url-shortener-app
+  ports:
+    - port: 8000
+      targetPort: 8000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: url-shortener-app
+  namespace: url-shortener
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: url-shortener-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: url-shortener-app
+    spec:
+      containers:
+        - name: app
+          image: aminghazizadeh/url-shortener:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            # Build DATABASE_URL from components (avoids hardcoding passwords)
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: url-shortener-secrets
+                  key: postgres-user
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: url-shortener-secrets
+                  key: postgres-password
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: url-shortener-secrets
+                  key: postgres-db
+            - name: DATABASE_URL
+              value: "postgresql://$(PGUSER):$(PGPASSWORD)@postgres:5432/$(PGDATABASE)"
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: url-shortener-config
+                  key: redis-url
+            - name: FLASK_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: url-shortener-config
+                  key: flask-env
+            - name: BULK_IMPORT_WORKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: url-shortener-config
+                  key: bulk-import-workers
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+---
+# ── 7. Ingress (k3s Traefik) ──
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: url-shortener-ingress
+  namespace: url-shortener
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  rules:
+    - host: aminghuf.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8000
