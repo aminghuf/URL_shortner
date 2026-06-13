@@ -1,8 +1,6 @@
 # Scalable URL Shortener with Distributed Orchestration
 
-A production-grade URL shortening service built with Python/Flask, featuring distributed orchestration via Docker Compose and Kubernetes. Designed to demonstrate virtualization concepts including containerization, horizontal pod autoscaling, reverse proxy-based rate limiting, caching strategies, and CI/CD automation — ideal for a university Virtualization Systems course.
-
-The service accepts long URLs via REST API or web UI, generates unique short codes, and provides fast redirects backed by an in-memory Redis cache. Click tracking, bulk CSV import with concurrent worker pools, and a statistics API are built in. Nginx provides rate limiting, reverse proxying, and security hardening.
+A production-grade URL shortening service built with Python/Flask, featuring distributed orchestration via Docker Compose. The service accepts long URLs via REST API or web UI, generates unique short codes, and provides fast redirects backed by an in-memory Redis cache. Click tracking, bulk CSV import with concurrent worker pools, and a statistics API are built in. Nginx provides rate limiting, reverse proxying, and security hardening.
 
 ---
 
@@ -48,18 +46,6 @@ The service accepts long URLs via REST API or web UI, generates unique short cod
 │  • Click events  │  │    → long_url        │
 │  • Stats/agg     │  │    24h TTL           │
 └──────────────────┘  └──────────────────────┘
-
-              Kubernetes Cluster (Production)
-┌──────────────────────────────────────────────────────────────────────┐
-│                                                                      │
-│  ┌──────────┐                                                        │
-│  │ Ingress  │  ──► Service (ClusterIP) ──► Deployment (3+ pods)    │
-│  │ Controller│       port 80               ┌───────────────────┐   │
-│  └──────────┘        target 8000           │ HPA: 2-10 replicas│   │
-│                                             │ CPU @ 70% target │   │
-│  ConfigMap ──► env vars for Flask           └───────────────────┘   │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -72,9 +58,8 @@ The service accepts long URLs via REST API or web UI, generates unique short cod
 - **Redis Caching** — Fast lookup layer with 24-hour TTL. Cache-aside pattern: check Redis first, fall back to PostgreSQL, then populate cache.
 - **Rate Limiting** — Two layers: Nginx `limit_req` (30 req/s per IP) + application-level sliding-window rate limiter in Flask (per-client configurable limit).
 - **Statistics API** — Retrieve total clicks, recent clicks (last 24h), and creation timestamp for any short code.
-- **Health Probes** — Kubernetes-ready `/api/health` endpoint that checks database connectivity and Redis availability.
+- **Health Probes** — `/api/health` endpoint that checks database connectivity and Redis availability.
 - **Docker & Docker Compose** — Multi-service orchestration with health checks, resource constraints, and dependency ordering.
-- **Kubernetes Deployment** — Namespace, ConfigMap, Deployment, Service (ClusterIP), HorizontalPodAutoscaler, and Ingress manifests included.
 - **CI/CD Pipeline** — GitHub Actions runs tests, builds/pushes Docker images, and deploys to a VPS via SSH.
 
 ---
@@ -88,7 +73,6 @@ The service accepts long URLs via REST API or web UI, generates unique short cod
 | **Cache**       | Redis 7 (Alpine)                       |
 | **Reverse Proxy** | Nginx 1.25 (Alpine)                  |
 | **Containerization** | Docker, Docker Compose           |
-| **Orchestration** | Kubernetes (K3s / Minikube)         |
 | **CI/CD**       | GitHub Actions                        |
 | **Testing**     | Pytest                                 |
 | **CORS**        | Flask-CORS                             |
@@ -157,8 +141,7 @@ All endpoints are served at `http://localhost:{port}` (port `80` through Nginx, 
 | Method | Path                    | Description                                                              | Request Body / Query                                          | Response                                                                 |
 |--------|-------------------------|--------------------------------------------------------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------|
 | `GET`  | `/`                     | Render the landing page (web UI)                                        | —                                                             | HTML page                                                                |
-| `GET`  | `/health`               | Legacy health check                                                     | —                                                             | `{"status": "ok"}`                                                       |
-| `GET`  | `/api/health`           | Dependency-aware health probe (DB + Redis checks)                       | —                                                             | `{"status": "healthy", "database": "up", "redis": "up", "timestamp": "…"}` |
+| `GET`  | `/api/health`           | Health probe (DB + Redis checks)                                        | —                                                             | `{"status": "healthy", "database": "up", "redis": "up", "timestamp": "…"}` |
 | `POST` | `/shorten`              | Create a short URL                                                      | `{"url": "https://example.com"}` (JSON)                       | `201`: `{"short_code": "aB3xYz", "short_url": "http://host/aB3xYz", "created": true}` |
 | `GET`  | `/<short_code>`         | Redirect to the original long URL (with click tracking)                 | —                                                             | `302 Found` → `Location: <long_url>`                                     |
 | `GET`  | `/stats/<short_code>`   | Get click statistics for a short code                                   | —                                                             | `{"short_code": "aB3xYz", "long_url": "…", "total_clicks": 42, "recent_clicks_24h": 3, "created_at": "…"}` |
@@ -188,90 +171,25 @@ All endpoints are served at `http://localhost:{port}` (port `80` through Nginx, 
 | `POSTGRES_USER`        | Yes*     | `urlshortener`           | Database user (for `docker compose up`)            |
 | `POSTGRES_PASSWORD`    | Yes*     | `urlshortener_secret`    | Database password (for `docker compose up`)        |
 
-> **\*** Required only when using Docker Compose; in Kubernetes, these are passed via ConfigMap/Secret.
-
----
-
-## Development Setup
-
-### Prerequisites
-
-- Python 3.11+
-- pip (or uv)
-- PostgreSQL 16 (or SQLite for local dev)
-- Redis 7 (optional — cache degrades gracefully)
-- Docker (optional — for containerized dev)
-
-### Local Without Docker
-
-```bash
-# 1. Clone and enter repo
-git clone https://github.com/aminghuf/URL_shortner.git
-cd URL_shortner
-
-# 2. Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. (Optional) Install dev extras
-pip install pytest
-
-# 5. Set up environment
-export DATABASE_URL="sqlite:///dev.db"          # Use SQLite for local dev
-export REDIS_URL="redis://localhost:6379/0"     # Or omit to skip Redis
-export FLASK_ENV="development"
-export BULK_IMPORT_WORKERS="2"
-
-# 6. Run the application
-flask run --debug --port 8000
-```
-
-### With Docker (Development Overrides)
-
-```bash
-# Override the compose file for hot-reload
-docker compose -f docker-compose.yml up --build -d
-docker compose logs -f app
-```
+> **\*** Required only when using Docker Compose.
 
 ---
 
 ## Testing
 
-### Running Tests
-
 ```bash
 # With virtual environment active
 pytest -v
 
-# With coverage (install pytest-cov first)
+# With coverage
 pytest --cov=app --cov-report=term-missing
-
-# Run a specific test
-pytest tests/test_app.py::test_shorten_url -v
 ```
-
-### Test Suite Overview
-
-The test suite (`tests/test_app.py`) covers:
-
-| Test                                    | Assertions                                              |
-|-----------------------------------------|---------------------------------------------------------|
-| `test_health`                           | `GET /health` returns `200 {"status": "ok"}`           |
-| `test_shorten_url`                      | `POST /shorten` with valid URL returns `201` + short code |
-| `test_shorten_missing_url`              | `POST /shorten` without URL returns `400`              |
-| `test_redirect_to_url`                  | `GET /<short_code>` returns `302` with correct `Location` header |
-
-To extend: run `pytest` after adding routes, and verify no regressions.
 
 ---
 
 ## CI/CD Pipeline
 
-The project uses **GitHub Actions** (`.github/workflows/test.yml`) with two jobs:
+The project uses **GitHub Actions** (`.github/workflows/deploy.yml`) with two jobs:
 
 ### `test` Job
 
@@ -282,18 +200,17 @@ Triggered on every push to `main` and on pull requests.
 3. **Install dependencies** — `pip install -r requirements.txt`
 4. **Run tests** — `pytest`
 5. **Build Docker image** — `docker build -t url-shortener:test .`
-6. **Login to Docker Hub** — authenticates with `${{ secrets.DOCKER_USERNAME }}` and `${{ secrets.DOCKER_PASSWORD }}`
+6. **Login to Docker Hub** — authenticates with `${{ secrets.DOCKER_HUB_USERNAME }}` and `${{ secrets.DOCKER_HUB_TOKEN }}`
 7. **Tag & Push** — pushes `:latest` and `:<commit-sha>` tags to Docker Hub
 
-### `deploy` Job
+### `build-and-deploy` Job
 
 Runs after `test` completes successfully.
 
-1. **SSH into VPS** — uses `appleboy/ssh-action@v1.0.3` with `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` secrets
-2. **Stop & remove** existing container
-3. **Pull** latest image from Docker Hub
-4. **Run** new container with Docker on port 5000
-5. **Health check** — verifies the deployment with `curl -f http://127.0.0.1:5000/health`
+1. **SSH into VPS** — uses `appleboy/ssh-action` with `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` secrets
+2. **Pull** latest code and Docker image
+3. **Restart** services via `docker compose -f docker-compose.prod.yml up -d`
+4. **Health check** — verifies the deployment with `curl -sf http://localhost:8000/api/health`
 
 ---
 
@@ -308,36 +225,11 @@ Runs after `test` completes successfully.
 | `postgres`| 0.5 CPU   | 512 MB       | 0.2 CPU         | 256 MB             |
 | `redis`   | 0.3 CPU   | 256 MB       | 0.1 CPU         | 128 MB             |
 
-### Kubernetes Resource Requests & Limits
-
-| Resource | Request  | Limit    | Rationale                                |
-|----------|----------|----------|------------------------------------------|
-| CPU      | 200m     | 500m     | 200m guarantees baseline; 500m burst     |
-| Memory   | 256 MiB  | 512 MiB  | Flask + Gunicorn + SQLAlchemy overhead   |
-
-### Horizontal Pod Autoscaler (HPA)
-
-- **Minimum replicas:** 2 (high availability)
-- **Maximum replicas:** 10 (burst capacity)
-- **Metric:** CPU utilization at **70%** target
-- **Cooldown/Stabilization:** Kubernetes default (5 min scale-up, 3 min scale-down)
-
 ### Nginx Rate Limiting
 
 - **Application layer:** Sliding-window counter in Flask (resets per minute, uses Redis or in-memory dictionary). Configured per-client IP.
 - **Proxy layer (Nginx):** `limit_req_zone` with 10 MB shared memory zone (~160,000 IPs tracked), **30 requests/second** per IP, burst of 20, and nodelay.
 - **Connection limiting:** Nginx `limit_conn` at 10 concurrent connections per IP.
-
-### Performance Characteristics
-
-| Scenario                    | Expected Throughput (Docker) | With HPA (K8s, 5 replicas) |
-|-----------------------------|------------------------------|-----------------------------|
-| Redirect (cache hit)        | ~5,000 req/s                 | ~20,000 req/s               |
-| Shorten (DB write)          | ~500 req/s                   | ~2,000 req/s                |
-| Bulk import (1000 URLs)     | ~5–10 seconds                | ~2–4 seconds                |
-| Stats (cache + DB read)     | ~3,000 req/s                 | ~12,000 req/s               |
-
-> **Note:** Throughput figures are estimates based on local testing with a 4-core / 8 GB host. Actual performance depends on network latency, disk I/O, and Redis/PostgreSQL tuning.
 
 ---
 
@@ -349,15 +241,8 @@ URL_shortner/
 ├── requirements.txt            # Python dependencies
 ├── Dockerfile                  # Multi-stage Python container
 ├── docker-compose.yml          # Multi-service orchestration (4 containers)
+├── docker-compose.prod.yml     # Production overrides
 ├── .gitignore
-│
-├── k8s/                        # Kubernetes manifests
-│   ├── namespace.yaml          # Isolated namespace
-│   ├── configmap.yaml          # Environment configuration
-│   ├── deployment.yaml         # App deployment (3 replicas, probes, resources)
-│   ├── service.yaml            # ClusterIP service (port 80 → 8000)
-│   ├── hpa.yaml                # Horizontal pod autoscaler (2–10 replicas)
-│   └── ingress.yaml            # Nginx ingress controller rules
 │
 ├── nginx/                      # Nginx reverse proxy
 │   ├── Dockerfile              # Alpine-based nginx image
@@ -373,28 +258,8 @@ URL_shortner/
 │   └── test_app.py             # Pytest test suite
 │
 └── .github/workflows/
-    └── test.yml                # GitHub Actions CI/CD pipeline
+    └── deploy.yml              # GitHub Actions CI/CD pipeline
 ```
-
----
-
-## Course Reflection — Virtualization Systems
-
-This project demonstrates several core virtualization concepts taught in a university Virtualization Systems course:
-
-1. **Containerization** — Each service (app, nginx, postgres, redis) runs in its own Docker container with isolated filesystem, network, and process space. The `Dockerfile` uses a slim base image (`python:3.11-slim` → `307 MB`) and runs as a non-root user for security.
-
-2. **Multi-service Orchestration** — Docker Compose orchestrates four interdependent containers with health checks, dependency ordering (`depends_on` with `condition: service_healthy`), and resource constraints.
-
-3. **Kubernetes Orchestration** — Full set of manifests demonstrating namespaces, ConfigMaps, Deployments with rolling updates, ClusterIP Services, HorizontalPodAutoscaler for elastic scaling, and Ingress for external traffic routing.
-
-4. **Reverse Proxy Patterns** — Nginx acts as a secure entry point, demonstrating rate limiting, connection limiting, request buffering, and security header injection — a common pattern in virtualized microservice architectures.
-
-5. **Horizontal Scaling** — The HPA automatically provisions additional pods when CPU exceeds 70%, demonstrating elastic horizontal scaling in response to load.
-
-6. **Health Probes** — Liveness, readiness, and startup probes ensure the Kubernetes scheduler only routes traffic to healthy pods and automatically restarts failed containers.
-
-7. **CI/CD Automation** — GitHub Actions automates testing, container image building, and deployment — demonstrating the virtualization development lifecycle.
 
 ---
 
