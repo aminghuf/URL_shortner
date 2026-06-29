@@ -85,7 +85,7 @@ jobs:
           chmod 600 $HOME/.kube/config
 
       - name: Apply manifests
-        run: kubectl apply -f k8s/ --validate=false
+        run: kubectl apply -R -f k8s/ --validate=false
 
       - name: Update image
         run: |
