@@ -4,9 +4,8 @@ import os
 import random
 import re
 import string
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import redis as redis_lib
 from flask import Flask, jsonify, redirect, render_template, request
@@ -132,37 +131,25 @@ def is_valid_url(url: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Rate Limiting (in-memory sliding window per IP)
+# Rate Limiting (Redis-backed counters — safe for horizontal scaling)
 # ---------------------------------------------------------------------------
-
-_rate_store: dict[str, list[float]] = {}
-
-
-def _clean_rate_store() -> None:
-    """Evict stale entries from the in-memory rate store."""
-    now = time.time()
-    cutoff = now - RATE_LIMIT_WINDOW
-    stale_ips = [ip for ip, timestamps in list(_rate_store.items()) if not timestamps or timestamps[-1] < cutoff]
-    for ip in stale_ips:
-        del _rate_store[ip]
 
 
 def is_rate_limited(ip: str) -> bool:
-    """Return True if the IP has exceeded the rate limit."""
-    now = time.time()
-    cutoff = now - RATE_LIMIT_WINDOW
+    """Return True if the IP has exceeded the rate limit.
 
-    if ip not in _rate_store:
-        _rate_store[ip] = []
-
-    # Keep only timestamps inside the current window
-    _rate_store[ip] = [ts for ts in _rate_store[ip] if ts > cutoff]
-
-    if len(_rate_store[ip]) >= RATE_LIMIT_MAX:
-        return True
-
-    _rate_store[ip].append(now)
-    return False
+    Uses a Redis counter with a TTL-based expiry window.
+    Falls back to fail-open (allow through) if Redis is unavailable.
+    This is safe in Kubernetes because all pods share the same Redis.
+    """
+    r = get_redis()
+    if r is None:
+        return False                     # fail open — Redis down, allow request
+    key = f"rate:{ip}"
+    count = r.incr(key)
+    if count == 1:
+        r.expire(key, RATE_LIMIT_WINDOW)  # start the TTL window on first hit
+    return count > RATE_LIMIT_MAX
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +319,7 @@ def stats(short_code):
     total_clicks = url_mapping.click_count
 
     # Recent clicks (last 24h)
-    cutoff = datetime.now(timezone.utc)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     recent_clicks = Click.query.filter(
         Click.url_mapping_id == url_mapping.id,
         Click.timestamp >= cutoff,
@@ -350,17 +337,6 @@ def stats(short_code):
 # ---------------------------------------------------------------------------
 # Routes – Bulk Import (CSV / Text upload with worker pool)
 # ---------------------------------------------------------------------------
-
-def _validate_and_prepare_url(row: dict) -> dict | None:
-    """Validate a single row and return a mapping dict or None."""
-    url = (row.get("url") or row.get("long_url") or "").strip()
-    if not url:
-        return None
-    url = normalize_url(url)
-    if not is_valid_url(url):
-        return None
-    code = generate_short_code()
-    return {"short_code": code, "long_url": url}
 
 
 def _generate_unique_code(code_set: set) -> str:
