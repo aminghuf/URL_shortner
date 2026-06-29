@@ -29,6 +29,13 @@ spec:
               value: redis://redis-service:6379/0
             - name: FLASK_ENV
               value: production
+          resources:
+            requests:
+              cpu: 100m       # HPA uses this to calculate utilization %
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           livenessProbe:
             httpGet:
               path: /api/health
