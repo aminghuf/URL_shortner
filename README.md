@@ -142,7 +142,3 @@ pytest -v
 
 ---
 
-## Authors
-
-- **amin** — [@aminghuf](https://github.com/aminghuf)
-- **shakibofski** — Frontend development
