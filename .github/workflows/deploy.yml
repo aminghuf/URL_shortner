@@ -7,7 +7,6 @@ on:
 
 env:
   DOCKER_HUB_IMAGE: aminghazizadeh/url-shortener
-  DEPLOY_PATH: /root/url_shortner
 
 jobs:
   # ──────────────────────────────────────────────
@@ -72,35 +71,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ── Deploy to VPS ──
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-
-            echo "📦 Pulling latest code..."
-            cd ${{ env.DEPLOY_PATH }}
-            git pull origin main
-
-            echo "🐳 Pulling latest Docker image..."
-            docker pull ${{ env.DOCKER_HUB_IMAGE }}:latest
-
-            echo "🔄 Restarting services..."
-            docker compose \
-              -f docker-compose.prod.yml \
-              up -d --remove-orphans
-
-            echo "🧹 Cleaning up old images..."
-            docker image prune -af --filter "until=24h"
-
-            echo "🏥 Health check..."
-            sleep 3
-            curl -sf http://localhost:8000/api/health && echo "✅ App healthy" || echo "⚠️  Health check failed"
+      # ── Future: Deploy to Kubernetes ──
+      # Replace the commented section below when a K8s cluster is available:
+      #
+      # - name: Set up kubectl
+      #   uses: azure/setup-kubectl@v4
+      #   with:
+      #     version: "stable"
+      #
+      # - name: Deploy to Kubernetes
+      #   run: |
+      #     kubectl set image deployment/app app=${{ env.DOCKER_HUB_IMAGE }}:${{ github.sha }}
+      #     kubectl rollout status deployment/app
 
       # ── Verify external access ──
       - name: Smoke test
