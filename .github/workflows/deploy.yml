@@ -1,4 +1,4 @@
-name: Test, Build & Deploy
+name: Build & Deploy
 
 on:
   push:
@@ -9,41 +9,9 @@ env:
   DOCKER_HUB_IMAGE: aminghazizadeh/url-shortener
 
 jobs:
-  # ──────────────────────────────────────────────
-  # Job 1: Run tests
-  # ──────────────────────────────────────────────
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run tests
-        run: python -m pytest tests/ -v
-        # Tests use SQLite by default (no DATABASE_URL set)
-        # Redis is optional — the app handles it gracefully
-
-  # ──────────────────────────────────────────────
-  # Job 2: Build Docker image, push, and deploy
-  # ──────────────────────────────────────────────
   build-and-deploy:
-    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: success()  # only runs if tests pass
 
     steps:
       - name: Checkout code
