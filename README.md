@@ -89,51 +89,6 @@ URL_shortner/
     └── deploy.yml            # CI/CD pipeline
 ```
 
----
-
-## Kubernetes Setup (k3s on a VPS)
-
-### 1. Install k3s
-
-```bash
-curl -sfL https://get.k3s.io | sh -
-kubectl get nodes   # verify cluster is up
-```
-
-### 2. Create the TLS secret
-
-```bash
-kubectl create secret tls tls-secret \
-  --cert=/etc/letsencrypt/live/aminghuf.dev/fullchain.pem \
-  --key=/etc/letsencrypt/live/aminghuf.dev/privkey.pem
-```
-
-### 3. Deploy everything
-
-```bash
-git clone https://github.com/aminghuf/URL_shortner.git
-cd URL_shortner
-kubectl apply -f k8s/monitoring/namespace.yaml
-kubectl apply -R -f k8s/ --validate=false
-```
-
-### 4. Install metrics-server (required for HPA)
-
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-kubectl patch deployment metrics-server -n kube-system --type='json' \
-  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
-```
-
-### 5. Verify
-
-```bash
-kubectl get pods           # all pods running
-kubectl get hpa            # HPA showing CPU %
-kubectl top nodes          # metrics-server working
-```
-
----
 
 ## CI/CD Pipeline
 
@@ -174,37 +129,6 @@ kubectl get hpa -w
 ab -n 1000 -c 50 http://aminghuf.dev/api/health
 ```
 
----
-
-## Monitoring
-
-Grafana is accessible at `http://<vps-ip>:32000` (login: `admin` / `admin`).
-
-Prometheus scrapes:
-- **kube-state-metrics** — pod counts, replica status, deployment health
-- **node-exporter** — VPS CPU, RAM, disk, network
-
-**Recommended dashboards to import** (Grafana → Dashboards → Import):
-
-| ID | Shows |
-|----|-------|
-| `1860` | Node Exporter Full — CPU, RAM, disk, network |
-| `13332` | Kubernetes cluster — pod counts, replica status |
-
----
-
-## API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | Web UI |
-| `GET` | `/api/health` | Health check (DB + Redis status) |
-| `POST` | `/shorten` | Create short URL — body: `{"url": "https://..."}` |
-| `GET` | `/<short_code>` | Redirect to original URL |
-| `GET` | `/stats/<short_code>` | Click statistics |
-| `POST` | `/bulk-import` | Bulk import from CSV/text file |
-
----
 
 ## Local Development
 
