@@ -67,8 +67,6 @@ URL_shortner/
 │   └── index.html
 ├── static/
 │   └── style.css
-├── tests/
-│   └── test_app.py
 │
 ├── k8s/                      # Kubernetes manifests (applied in order)
 │   ├── secret.yaml           # DB password (base64)
@@ -92,13 +90,9 @@ URL_shortner/
 
 ## CI/CD Pipeline
 
-Every push to `main` runs two jobs:
+Every push to `main` runs:
 
-**Job 1 — test**
-- Installs Python dependencies
-- Runs `pytest` (SQLite, no external services needed)
-
-**Job 2 — build-and-deploy** (only if tests pass)
+**build-and-deploy**
 - Builds Docker image and pushes to Docker Hub (`:latest` + `:<commit-sha>`)
 - Applies all K8s manifests via `kubectl apply -R -f k8s/`
 - Rolls out the new image with `kubectl set image`
